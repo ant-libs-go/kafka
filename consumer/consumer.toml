@@ -1,0 +1,5 @@
+[kafka.consumer.default]
+	addrs = ["127.0.0.1:9092"]
+	topics = ["business"]
+	group_id = "consumer_test"
+    receive_worker_num = 10
