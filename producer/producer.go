@@ -40,7 +40,7 @@ func NewKafkaProducer(cfg *Cfg) (r *KafkaProducer, err error) {
 	kcfg.Producer.Partitioner = sarama.NewHashPartitioner // hash分区
 	kcfg.Producer.Return.Successes = cfg.ReturnSuccesses
 	kcfg.Producer.Return.Errors = cfg.ReturnErrors
-	kcfg.Net.TLS.Enable = false
+	kcfg.Version = sarama.V0_10_2_1
 
 	if r.instance, err = sarama.NewAsyncProducer(cfg.Addrs, kcfg); err != nil {
 		return
