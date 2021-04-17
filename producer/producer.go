@@ -19,15 +19,15 @@ import (
 type KafkaProducer struct {
 	cfg          *Cfg
 	instance     sarama.AsyncProducer
-	sucFeedback  func(*sarama.ProducerMessage, []byte)
-	failFeedback func(*sarama.ProducerError, []byte)
+	sucFeedback  func(*sarama.ProducerMessage, string)
+	failFeedback func(*sarama.ProducerError, string)
 }
 
 var (
-	DefaultSucFeedbackFn = func(suc *sarama.ProducerMessage, msg []byte) {
+	DefaultSucFeedbackFn = func(suc *sarama.ProducerMessage, msg string) {
 		// seelog.Errorf("[KAFKA] producer publish success, topic: %s, message: %s", suc.Topic, msg)
 	}
-	DefaultFailFeedbackFn = func(fail *sarama.ProducerError, msg []byte) {
+	DefaultFailFeedbackFn = func(fail *sarama.ProducerError, msg string) {
 		seelog.Errorf("[KAFKA] producer publish err: %s, topic: %s, message: %s", fail.Error(), fail.Msg.Topic, msg)
 	}
 )
@@ -71,7 +71,7 @@ func (this *KafkaProducer) feedback() {
 				continue
 			}
 			msg, _ := suc.Value.Encode()
-			this.sucFeedback(suc, msg)
+			this.sucFeedback(suc, string(msg))
 		case fail, ok := <-this.instance.Errors():
 			if !ok {
 				continue
@@ -80,12 +80,12 @@ func (this *KafkaProducer) feedback() {
 				continue
 			}
 			msg, _ := fail.Msg.Value.Encode()
-			this.failFeedback(fail, msg)
+			this.failFeedback(fail, string(msg))
 		}
 	}
 }
 
-func (this *KafkaProducer) Publish(topic string, key string, msg []byte) {
+func (this *KafkaProducer) Publish(topic string, key string, msg string) {
 	this.instance.Input() <- &sarama.ProducerMessage{
 		Topic:     topic,
 		Key:       sarama.StringEncoder(key),
@@ -93,11 +93,11 @@ func (this *KafkaProducer) Publish(topic string, key string, msg []byte) {
 		Timestamp: time.Now()}
 }
 
-func (this *KafkaProducer) SetSucFeedback(fn func(*sarama.ProducerMessage, []byte)) {
+func (this *KafkaProducer) SetSucFeedback(fn func(*sarama.ProducerMessage, string)) {
 	this.sucFeedback = fn
 }
 
-func (this *KafkaProducer) SetFailFeedback(fn func(*sarama.ProducerError, []byte)) {
+func (this *KafkaProducer) SetFailFeedback(fn func(*sarama.ProducerError, string)) {
 	this.failFeedback = fn
 }
 
