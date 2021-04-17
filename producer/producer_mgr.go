@@ -39,7 +39,7 @@ type Cfg struct {
 	ReturnFeedbackNum int      `toml:"return_feedback_num"` // 等待响应的并发数
 }
 
-func DefaultProducerPublish(topic string, key string, msg []byte) (err error) {
+func DefaultProducerPublish(topic string, key string, msg string) (err error) {
 	return Publish("default", topic, key, msg)
 }
 
@@ -47,7 +47,7 @@ func CloseDefaultProducer() {
 	CloseProducer("default")
 }
 
-func Publish(name string, topic string, key string, msg []byte) (err error) {
+func Publish(name string, topic string, key string, msg string) (err error) {
 	var producer *KafkaProducer
 	if producer, err = SafeProducer(name); err != nil {
 		return
@@ -56,7 +56,7 @@ func Publish(name string, topic string, key string, msg []byte) (err error) {
 	return
 }
 
-func SetSucFeedback(name string, fn func(*sarama.ProducerMessage, []byte)) (err error) {
+func SetSucFeedback(name string, fn func(*sarama.ProducerMessage, string)) (err error) {
 	var producer *KafkaProducer
 	if producer, err = SafeProducer(name); err != nil {
 		return
@@ -65,7 +65,7 @@ func SetSucFeedback(name string, fn func(*sarama.ProducerMessage, []byte)) (err 
 	return
 }
 
-func SetFailFeedback(name string, fn func(*sarama.ProducerError, []byte)) (err error) {
+func SetFailFeedback(name string, fn func(*sarama.ProducerError, string)) (err error) {
 	var producer *KafkaProducer
 	if producer, err = SafeProducer(name); err != nil {
 		return
