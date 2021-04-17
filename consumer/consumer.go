@@ -16,15 +16,16 @@ import (
 	"github.com/cihub/seelog"
 )
 
-var DefaultReceiveFn = func(topic string, body []byte, msg *sarama.ConsumerMessage) {
+var DefaultReceiveFn = func(topic string, body []byte, msg *sarama.ConsumerMessage) (err error) {
 	seelog.Infof("[KAFKA] consumer receive message, topic: %s, partition:%d, offset:%d, key:%s, body:%s, tm:%s", topic, msg.Partition, msg.Offset, string(msg.Key), string(body), msg.Timestamp.Format("2006-01-02 15:04:05"))
+	return
 }
 
 type KafkaConsumer struct {
 	cfg       *Cfg
 	instance  *cluster.Consumer
 	msgCh     chan *sarama.ConsumerMessage
-	receiveFn func(string, []byte, *sarama.ConsumerMessage)
+	receiveFn func(string, []byte, *sarama.ConsumerMessage) (err error)
 }
 
 func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
@@ -80,13 +81,15 @@ func (this *KafkaConsumer) receive() {
 			if this.receiveFn == nil {
 				continue
 			}
-			this.receiveFn(msg.Topic, msg.Value, msg)
+			if err := this.receiveFn(msg.Topic, msg.Value, msg); err != nil {
+				continue
+			}
 			this.instance.MarkOffset(msg, "") // mark message as processed
 		}
 	}
 }
 
-func (this *KafkaConsumer) Receive(rcvr func(string, []byte, *sarama.ConsumerMessage)) (err error) {
+func (this *KafkaConsumer) Receive(rcvr func(string, []byte, *sarama.ConsumerMessage) error) (err error) {
 	this.receiveFn = rcvr
 
 	for i := 0; i < util.If(this.cfg.ReceiveWorkerNum > 0, this.cfg.ReceiveWorkerNum, 10).(int); i++ {
