@@ -1,6 +1,7 @@
 [kafka.producer.default]
 	addrs = ["127.0.0.1:9092"]
 	acks = 1
+	topic = "business" # default topic
 	return_successes = true
 	return_errors = true
 	return_feedback_num = 10

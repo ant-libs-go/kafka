@@ -34,6 +34,7 @@ type kafkaConfig struct {
 type Cfg struct {
 	Addrs             []string `toml:"addrs"`
 	Acks              int16    `toml:"acks"`                // 等待服务器完成到如何进度在响应
+	Topic             string   `toml:"topic"`               // 默认topic.当不指定topic时候使用该值
 	ReturnSuccesses   bool     `toml:"return_successes"`    // 是否等待成功的响应,仅RequireAcks设置不是NoReponse才有效
 	ReturnErrors      bool     `toml:"return_errors"`       // 是否等待失败的响应,仅RequireAcks设置不是NoReponse才有效
 	ReturnFeedbackNum int      `toml:"return_feedback_num"` // 等待响应的并发数

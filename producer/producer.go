@@ -86,6 +86,9 @@ func (this *KafkaProducer) feedback() {
 }
 
 func (this *KafkaProducer) Publish(topic string, key string, msg string) {
+	if len(topic) == 0 {
+		topic = this.cfg.Topic
+	}
 	this.instance.Input() <- &sarama.ProducerMessage{
 		Topic:     topic,
 		Key:       sarama.StringEncoder(key),
