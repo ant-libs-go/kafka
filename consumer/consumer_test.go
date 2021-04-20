@@ -29,9 +29,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestBasic(t *testing.T) {
-	err := DefaultConsumerReceive(func(topic string, body []byte, msg *sarama.ConsumerMessage) error {
-		fmt.Printf("topic: %s, partition:%d, offset:%d, key:%s, body:%s\n", topic, msg.Partition, msg.Offset, string(msg.Key), string(body))
-		if string(body) == "testtesttest==9" {
+	err := DefaultConsumerReceive(func(topic string, body string, msg *sarama.ConsumerMessage) error {
+		fmt.Printf("topic: %s, partition:%d, offset:%d, key:%s, body:%s\n", topic, msg.Partition, msg.Offset, string(msg.Key), body)
+		if body == "testtesttest==9" {
 			return fmt.Errorf("err")
 		}
 		return nil

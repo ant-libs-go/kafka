@@ -24,11 +24,11 @@ type KafkaProducer struct {
 }
 
 var (
-	DefaultSucFeedbackFn = func(suc *sarama.ProducerMessage, msg string) {
-		// seelog.Errorf("[KAFKA] producer publish success, topic: %s, message: %s", suc.Topic, msg)
+	DefaultSucFeedbackFn = func(suc *sarama.ProducerMessage, body string) {
+		// seelog.Errorf("[KAFKA] producer publish success, topic: %s, message: %s", suc.Topic, body)
 	}
-	DefaultFailFeedbackFn = func(fail *sarama.ProducerError, msg string) {
-		seelog.Errorf("[KAFKA] producer publish err: %s, topic: %s, message: %s", fail.Error(), fail.Msg.Topic, msg)
+	DefaultFailFeedbackFn = func(fail *sarama.ProducerError, body string) {
+		seelog.Errorf("[KAFKA] producer publish err: %s, topic: %s, message: %s", fail.Error(), fail.Msg.Topic, body)
 	}
 )
 
@@ -70,8 +70,8 @@ func (this *KafkaProducer) feedback() {
 			if this.sucFeedback == nil {
 				continue
 			}
-			msg, _ := suc.Value.Encode()
-			this.sucFeedback(suc, string(msg))
+			body, _ := suc.Value.Encode()
+			this.sucFeedback(suc, string(body))
 		case fail, ok := <-this.instance.Errors():
 			if !ok {
 				continue
@@ -79,21 +79,22 @@ func (this *KafkaProducer) feedback() {
 			if this.failFeedback == nil {
 				continue
 			}
-			msg, _ := fail.Msg.Value.Encode()
-			this.failFeedback(fail, string(msg))
+			body, _ := fail.Msg.Value.Encode()
+			this.failFeedback(fail, string(body))
 		}
 	}
 }
 
-func (this *KafkaProducer) Publish(topic string, key string, msg string) {
+func (this *KafkaProducer) Publish(topic string, key string, body string) {
 	if len(topic) == 0 {
 		topic = this.cfg.Topic
 	}
-	this.instance.Input() <- &sarama.ProducerMessage{
+	d := &sarama.ProducerMessage{
 		Topic:     topic,
 		Key:       sarama.StringEncoder(key),
-		Value:     sarama.ByteEncoder(msg),
+		Value:     sarama.ByteEncoder(body),
 		Timestamp: time.Now()}
+	this.instance.Input() <- d
 }
 
 func (this *KafkaProducer) SetSucFeedback(fn func(*sarama.ProducerMessage, string)) {

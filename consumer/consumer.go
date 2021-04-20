@@ -16,8 +16,8 @@ import (
 	"github.com/cihub/seelog"
 )
 
-var DefaultReceiveFn = func(topic string, body []byte, msg *sarama.ConsumerMessage) (err error) {
-	seelog.Infof("[KAFKA] consumer receive message, topic: %s, partition:%d, offset:%d, key:%s, body:%s, tm:%s", topic, msg.Partition, msg.Offset, string(msg.Key), string(body), msg.Timestamp.Format("2006-01-02 15:04:05"))
+var DefaultReceiveFn = func(topic string, body string, msg *sarama.ConsumerMessage) (err error) {
+	seelog.Infof("[KAFKA] consumer receive message, topic: %s, partition:%d, offset:%d, key:%s, body:%s, tm:%s", topic, msg.Partition, msg.Offset, string(msg.Key), body, msg.Timestamp.Format("2006-01-02 15:04:05"))
 	return
 }
 
@@ -25,7 +25,7 @@ type KafkaConsumer struct {
 	cfg       *Cfg
 	instance  *cluster.Consumer
 	msgCh     chan *sarama.ConsumerMessage
-	receiveFn func(string, []byte, *sarama.ConsumerMessage) (err error)
+	receiveFn func(string, string, *sarama.ConsumerMessage) (err error)
 }
 
 func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
@@ -82,7 +82,7 @@ func (this *KafkaConsumer) receive() {
 				continue
 			}
 			for {
-				if err := this.receiveFn(msg.Topic, msg.Value, msg); err == nil {
+				if err := this.receiveFn(msg.Topic, string(msg.Value), msg); err == nil {
 					break
 				}
 				time.Sleep(time.Second)
@@ -92,7 +92,7 @@ func (this *KafkaConsumer) receive() {
 	}
 }
 
-func (this *KafkaConsumer) Receive(rcvr func(string, []byte, *sarama.ConsumerMessage) error) (err error) {
+func (this *KafkaConsumer) Receive(rcvr func(string, string, *sarama.ConsumerMessage) error) (err error) {
 	this.receiveFn = rcvr
 
 	for i := 0; i < util.If(this.cfg.ReceiveWorkerNum > 0, this.cfg.ReceiveWorkerNum, 10).(int); i++ {
