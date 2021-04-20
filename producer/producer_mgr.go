@@ -40,20 +40,20 @@ type Cfg struct {
 	ReturnFeedbackNum int      `toml:"return_feedback_num"` // 等待响应的并发数
 }
 
-func DefaultProducerPublish(topic string, key string, msg string) (err error) {
-	return Publish("default", topic, key, msg)
+func DefaultProducerPublish(topic string, key string, body string) (err error) {
+	return Publish("default", topic, key, body)
 }
 
 func CloseDefaultProducer() {
 	CloseProducer("default")
 }
 
-func Publish(name string, topic string, key string, msg string) (err error) {
+func Publish(name string, topic string, key string, body string) (err error) {
 	var producer *KafkaProducer
 	if producer, err = SafeProducer(name); err != nil {
 		return
 	}
-	producer.Publish(topic, key, msg)
+	producer.Publish(topic, key, body)
 	return
 }
 

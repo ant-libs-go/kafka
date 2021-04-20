@@ -38,7 +38,7 @@ type Cfg struct {
 	ReceiveWorkerNum int      `toml:"receive_worker_num"` // 等待响应的并发数
 }
 
-func DefaultConsumerReceive(fn func(string, []byte, *sarama.ConsumerMessage) error) (err error) {
+func DefaultConsumerReceive(fn func(string, string, *sarama.ConsumerMessage) error) (err error) {
 	return Receive("default", fn)
 }
 
@@ -46,7 +46,7 @@ func CloseDefaultConsumer() {
 	CloseConsumer("default")
 }
 
-func Receive(name string, fn func(string, []byte, *sarama.ConsumerMessage) error) (err error) {
+func Receive(name string, fn func(string, string, *sarama.ConsumerMessage) error) (err error) {
 	var consumer *KafkaConsumer
 	if consumer, err = SafeConsumer(name); err != nil {
 		return
