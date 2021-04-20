@@ -81,8 +81,11 @@ func (this *KafkaConsumer) receive() {
 			if this.receiveFn == nil {
 				continue
 			}
-			if err := this.receiveFn(msg.Topic, msg.Value, msg); err != nil {
-				continue
+			for {
+				if err := this.receiveFn(msg.Topic, msg.Value, msg); err == nil {
+					break
+				}
+				time.Sleep(time.Second)
 			}
 			this.instance.MarkOffset(msg, "") // mark message as processed
 		}
