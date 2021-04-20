@@ -30,13 +30,13 @@ func TestMain(m *testing.M) {
 func TestBasic(t *testing.T) {
 	i := 0
 	for {
-		err := DefaultProducerPublish("business", fmt.Sprintf("===>%d", i), []byte(fmt.Sprintf("testtesttest==%d", i)))
+		err := DefaultProducerPublish("business", fmt.Sprintf("===>%d", i), fmt.Sprintf("testtesttest==%d", i))
 		if err != nil {
 			fmt.Println("publish err:", err)
 		}
 		i++
-		time.Sleep(time.Millisecond)
-		//time.Sleep(time.Second)
+		//time.Sleep(time.Millisecond)
+		time.Sleep(time.Second)
 	}
 }
 
