@@ -35,7 +35,8 @@ type Cfg struct {
 	Addrs            []string `toml:"addrs"`
 	Topics           []string `toml:"topics"`
 	GroupId          string   `toml:"group_id"`
-	ReceiveWorkerNum int      `toml:"receive_worker_num"` // 等待响应的并发数
+	ConsumeWorkerNum int      `toml:"consume_worker_num"` // 消费者并发数，参与分区分配，默认1
+	ReceiveWorkerNum int      `toml:"receive_worker_num"` // 业务实际并发数，默认10
 }
 
 func DefaultConsumerReceive(fn func(string, string, *sarama.ConsumerMessage) error) (err error) {
