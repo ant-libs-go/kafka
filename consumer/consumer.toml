@@ -2,4 +2,5 @@
 	addrs = ["127.0.0.1:9092"]
 	topics = ["business"]
 	group_id = "consumer_test"
-    receive_worker_num = 1
+    consume_worker_num = 12
+    receive_worker_num = 2

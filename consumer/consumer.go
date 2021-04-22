@@ -21,18 +21,24 @@ var DefaultReceiveFn = func(topic string, body string, msg *sarama.ConsumerMessa
 	return
 }
 
+type entry struct {
+	instance *cluster.Consumer
+	msgCh    chan *sarama.ConsumerMessage
+}
+
 type KafkaConsumer struct {
 	cfg       *Cfg
-	instance  *cluster.Consumer
-	msgCh     chan *sarama.ConsumerMessage
+	entries   []*entry
 	receiveFn func(string, string, *sarama.ConsumerMessage) (err error)
 }
 
 func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
 	r = &KafkaConsumer{
 		cfg:       cfg,
-		msgCh:     make(chan *sarama.ConsumerMessage, 1000),
+		entries:   make([]*entry, 0, 1000),
 		receiveFn: DefaultReceiveFn}
+	r.cfg.ConsumeWorkerNum = util.If(r.cfg.ConsumeWorkerNum > 0, r.cfg.ConsumeWorkerNum, 1).(int)
+	r.cfg.ReceiveWorkerNum = util.If(r.cfg.ReceiveWorkerNum > 0, r.cfg.ReceiveWorkerNum, 10).(int)
 
 	kcfg := cluster.NewConfig()
 	kcfg.Group.Return.Notifications = true
@@ -42,27 +48,31 @@ func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
 	kcfg.Consumer.Offsets.CommitInterval = 1 * time.Second
 	kcfg.Consumer.Offsets.Initial = sarama.OffsetOldest
 
-	if r.instance, err = cluster.NewConsumer(cfg.Addrs, cfg.GroupId, cfg.Topics, kcfg); err != nil {
-		return
+	for i := 0; i < r.cfg.ConsumeWorkerNum; i++ {
+		entry := &entry{msgCh: make(chan *sarama.ConsumerMessage, 1000)}
+		if entry.instance, err = cluster.NewConsumer(cfg.Addrs, cfg.GroupId, cfg.Topics, kcfg); err != nil {
+			return
+		}
+		r.entries = append(r.entries, entry)
+		go r.feedback(entry)
 	}
-	go r.feedback()
 	return
 }
 
-func (this *KafkaConsumer) feedback() {
+func (this *KafkaConsumer) feedback(entry *entry) {
 	for {
 		select {
-		case msg, ok := <-this.instance.Messages():
+		case msg, ok := <-entry.instance.Messages():
 			if !ok {
 				continue
 			}
-			this.msgCh <- msg
-		case err := <-this.instance.Errors():
+			entry.msgCh <- msg
+		case err := <-entry.instance.Errors():
 			if err == nil {
 				continue
 			}
 			seelog.Errorf("[KAFKA] consumer notice error: %s", err.Error())
-		case ntf := <-this.instance.Notifications():
+		case ntf := <-entry.instance.Notifications():
 			if ntf == nil {
 				continue
 			}
@@ -71,10 +81,10 @@ func (this *KafkaConsumer) feedback() {
 	}
 }
 
-func (this *KafkaConsumer) receive() {
+func (this *KafkaConsumer) receive(entry *entry) {
 	for {
 		select {
-		case msg, ok := <-this.msgCh:
+		case msg, ok := <-entry.msgCh:
 			if ok == false {
 				return
 			}
@@ -87,7 +97,7 @@ func (this *KafkaConsumer) receive() {
 				}
 				time.Sleep(time.Second)
 			}
-			this.instance.MarkOffset(msg, "") // mark message as processed
+			entry.instance.MarkOffset(msg, "") // mark message as processed
 		}
 	}
 }
@@ -95,15 +105,19 @@ func (this *KafkaConsumer) receive() {
 func (this *KafkaConsumer) Receive(rcvr func(string, string, *sarama.ConsumerMessage) error) (err error) {
 	this.receiveFn = rcvr
 
-	for i := 0; i < util.If(this.cfg.ReceiveWorkerNum > 0, this.cfg.ReceiveWorkerNum, 10).(int); i++ {
-		go this.receive()
+	for _, entry := range this.entries {
+		for i := 0; i < this.cfg.ReceiveWorkerNum; i++ {
+			go this.receive(entry)
+		}
 	}
 	return
 }
 
 func (this *KafkaConsumer) Close() {
-	this.instance.Close()
-	close(this.msgCh)
+	for _, entry := range this.entries {
+		entry.instance.Close()
+		close(entry.msgCh)
+	}
 }
 
 // vim: set noexpandtab ts=4 sts=4 sw=4 :
