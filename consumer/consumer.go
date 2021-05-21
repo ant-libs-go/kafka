@@ -8,6 +8,7 @@
 package consumer
 
 import (
+	"math/rand"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -21,21 +22,27 @@ var DefaultReceiveFn = func(topic string, body string, msg *sarama.ConsumerMessa
 	return
 }
 
+var DefaultReceiveSelector = func(topic string, key string, receiveWorkerNum int) (r int) {
+	rand.Seed(time.Now().UnixNano())
+	return rand.Intn(receiveWorkerNum)
+}
+
 type entry struct {
 	instance *cluster.Consumer
-	msgCh    chan *sarama.ConsumerMessage
+	msgChs   []chan *sarama.ConsumerMessage
 }
 
 type KafkaConsumer struct {
-	cfg       *Cfg
-	entries   []*entry
-	receiveFn func(string, string, *sarama.ConsumerMessage) (err error)
+	cfg             *Cfg
+	entries         []*entry
+	receiveFn       func(string, string, *sarama.ConsumerMessage) (err error)
+	receiveSelector func(topic string, key string, receiveWorkerNum int) (r int)
 }
 
 func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
 	r = &KafkaConsumer{
 		cfg:       cfg,
-		entries:   make([]*entry, 0, 1000),
+		entries:   make([]*entry, 0, 10),
 		receiveFn: DefaultReceiveFn}
 	r.cfg.ConsumeWorkerNum = util.If(r.cfg.ConsumeWorkerNum > 0, r.cfg.ConsumeWorkerNum, 1).(int)
 	r.cfg.ReceiveWorkerNum = util.If(r.cfg.ReceiveWorkerNum > 0, r.cfg.ReceiveWorkerNum, 10).(int)
@@ -49,7 +56,10 @@ func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
 	kcfg.Consumer.Offsets.Initial = sarama.OffsetOldest
 
 	for i := 0; i < r.cfg.ConsumeWorkerNum; i++ {
-		entry := &entry{msgCh: make(chan *sarama.ConsumerMessage, 1000)}
+		entry := &entry{msgChs: make([]chan *sarama.ConsumerMessage, 0, 10)}
+		for i := 0; i < cfg.ReceiveWorkerNum; i++ {
+			entry.msgChs = append(entry.msgChs, make(chan *sarama.ConsumerMessage, 500))
+		}
 		if entry.instance, err = cluster.NewConsumer(cfg.Addrs, cfg.GroupId, cfg.Topics, kcfg); err != nil {
 			return
 		}
@@ -59,6 +69,10 @@ func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
 	return
 }
 
+func (this *KafkaConsumer) SetReceiveSelector(fn func(topic string, key string, receiveWorkerNum int) int) {
+	this.receiveSelector = fn
+}
+
 func (this *KafkaConsumer) feedback(entry *entry) {
 	for {
 		select {
@@ -66,7 +80,7 @@ func (this *KafkaConsumer) feedback(entry *entry) {
 			if !ok {
 				continue
 			}
-			entry.msgCh <- msg
+			entry.msgChs[this.receiveSelector(msg.Topic, string(msg.Key), this.cfg.ReceiveWorkerNum)] <- msg
 		case err := <-entry.instance.Errors():
 			if err == nil {
 				continue
@@ -81,10 +95,10 @@ func (this *KafkaConsumer) feedback(entry *entry) {
 	}
 }
 
-func (this *KafkaConsumer) receive(entry *entry) {
+func (this *KafkaConsumer) receive(idx int, entry *entry) {
 	for {
 		select {
-		case msg, ok := <-entry.msgCh:
+		case msg, ok := <-entry.msgChs[idx]:
 			if ok == false {
 				return
 			}
@@ -105,9 +119,11 @@ func (this *KafkaConsumer) receive(entry *entry) {
 func (this *KafkaConsumer) Receive(rcvr func(string, string, *sarama.ConsumerMessage) error) (err error) {
 	this.receiveFn = rcvr
 
-	for _, entry := range this.entries {
-		for i := 0; i < this.cfg.ReceiveWorkerNum; i++ {
-			go this.receive(entry)
+	for _, one := range this.entries {
+		for idx := 0; idx < this.cfg.ReceiveWorkerNum; idx++ {
+			go func(idx int, entry *entry) {
+				this.receive(idx, entry)
+			}(idx, one)
 		}
 	}
 	return
@@ -116,7 +132,9 @@ func (this *KafkaConsumer) Receive(rcvr func(string, string, *sarama.ConsumerMes
 func (this *KafkaConsumer) Close() {
 	for _, entry := range this.entries {
 		entry.instance.Close()
-		close(entry.msgCh)
+		for _, msgCh := range entry.msgChs {
+			close(msgCh)
+		}
 	}
 }
 
