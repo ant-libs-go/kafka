@@ -46,6 +46,7 @@ func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
 		receiveFn: DefaultReceiveFn}
 	r.cfg.ConsumeWorkerNum = util.If(r.cfg.ConsumeWorkerNum > 0, r.cfg.ConsumeWorkerNum, 1).(int)
 	r.cfg.ReceiveWorkerNum = util.If(r.cfg.ReceiveWorkerNum > 0, r.cfg.ReceiveWorkerNum, 10).(int)
+	r.SetReceiveSelector(DefaultReceiveSelector)
 
 	kcfg := cluster.NewConfig()
 	kcfg.Group.Return.Notifications = true
