@@ -22,7 +22,7 @@ var DefaultReceiveFn = func(topic string, worker int, body string, msg *sarama.C
 	return
 }
 
-var DefaultReceiveSelector = func(topic string, key string, receiveWorkerNum int, msg *sarama.ConsumerMessage) (r int) {
+var DefaultReceiveSelector = func(topic string, key string, receiveWorkerNum int) (r int) {
 	rand.Seed(time.Now().UnixNano())
 	return rand.Intn(receiveWorkerNum)
 }
@@ -36,7 +36,7 @@ type KafkaConsumer struct {
 	cfg             *Cfg
 	entries         []*entry
 	receiveFn       func(string, int, string, *sarama.ConsumerMessage) (err error)
-	receiveSelector func(topic string, key string, receiveWorkerNum int, msg *sarama.ConsumerMessage) (r int)
+	receiveSelector func(topic string, key string, receiveWorkerNum int) (r int)
 }
 
 func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
@@ -70,7 +70,7 @@ func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
 	return
 }
 
-func (this *KafkaConsumer) SetReceiveSelector(fn func(topic string, key string, receiveWorkerNum int, msg *sarama.ConsumerMessage) int) {
+func (this *KafkaConsumer) SetReceiveSelector(fn func(topic string, key string, receiveWorkerNum int) int) {
 	this.receiveSelector = fn
 }
 
@@ -81,7 +81,7 @@ func (this *KafkaConsumer) feedback(entry *entry) {
 			if !ok {
 				continue
 			}
-			entry.msgChs[this.receiveSelector(msg.Topic, string(msg.Key), this.cfg.ReceiveWorkerNum, msg)] <- msg
+			entry.msgChs[this.receiveSelector(msg.Topic, string(msg.Key), this.cfg.ReceiveWorkerNum)] <- msg
 		case err := <-entry.instance.Errors():
 			if err == nil {
 				continue
