@@ -88,7 +88,7 @@ func getConsumer(name string) (r *KafkaConsumer, err error) {
 
 func addConsumer(name string) (r *KafkaConsumer, err error) {
 	var cfg *Cfg
-	if cfg, err = loadCfg(name); err != nil {
+	if cfg, err = LoadCfg(name); err != nil {
 		return
 	}
 	if r, err = NewKafkaConsumer(cfg); err != nil {
@@ -101,9 +101,9 @@ func addConsumer(name string) (r *KafkaConsumer, err error) {
 	return
 }
 
-func loadCfg(name string) (r *Cfg, err error) {
+func LoadCfg(name string) (r *Cfg, err error) {
 	var cfgs map[string]*Cfg
-	if cfgs, err = loadCfgs(); err != nil {
+	if cfgs, err = LoadCfgs(); err != nil {
 		return
 	}
 	if r = cfgs[name]; r == nil {
@@ -113,7 +113,7 @@ func loadCfg(name string) (r *Cfg, err error) {
 	return
 }
 
-func loadCfgs() (r map[string]*Cfg, err error) {
+func LoadCfgs() (r map[string]*Cfg, err error) {
 	r = map[string]*Cfg{}
 
 	cfg := &kafkaConfig{}
