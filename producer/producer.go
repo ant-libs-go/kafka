@@ -37,7 +37,7 @@ func NewKafkaProducer(cfg *Cfg) (r *KafkaProducer, err error) {
 
 	kcfg := sarama.NewConfig()
 	kcfg.Producer.RequiredAcks = sarama.RequiredAcks(cfg.Acks)
-	kcfg.Producer.Partitioner = sarama.NewHashPartitioner // hash分区
+	kcfg.Producer.Partitioner = r.parsePartitioner()
 	kcfg.Producer.Return.Successes = cfg.ReturnSuccesses
 	kcfg.Producer.Return.Errors = cfg.ReturnErrors
 	kcfg.Version = sarama.V2_2_0_0
@@ -56,6 +56,20 @@ func NewKafkaProducer(cfg *Cfg) (r *KafkaProducer, err error) {
 
 	for i := 0; i < util.If(cfg.ReturnFeedbackNum > 0, cfg.ReturnFeedbackNum, 10).(int); i++ {
 		go r.feedback()
+	}
+	return
+}
+
+func (this *KafkaProducer) parsePartitioner() (r sarama.PartitionerConstructor) {
+	r = sarama.NewHashPartitioner
+
+	if v, ok := map[string]sarama.PartitionerConstructor{
+		"manual": sarama.NewManualPartitioner,     // 手动选择分区，即使用msg中的partition
+		"random": sarama.NewRandomPartitioner,     // 随机选择分区
+		"round":  sarama.NewRoundRobinPartitioner, // 环形选择分区
+		"hash":   sarama.NewHashPartitioner,       // hash选择分区，即使用msg中的key生成hash
+	}[this.cfg.Partitioner]; ok {
+		r = v
 	}
 	return
 }
@@ -85,7 +99,7 @@ func (this *KafkaProducer) feedback() {
 	}
 }
 
-func (this *KafkaProducer) Publish(topic string, key string, body string) {
+func (this *KafkaProducer) Publish(topic string, body string, key string, partition int32) {
 	if len(topic) == 0 {
 		topic = this.cfg.Topic
 	}
@@ -93,6 +107,7 @@ func (this *KafkaProducer) Publish(topic string, key string, body string) {
 		Topic:     topic,
 		Key:       sarama.StringEncoder(key),
 		Value:     sarama.ByteEncoder(body),
+		Partition: partition,
 		Timestamp: time.Now()}
 	this.instance.Input() <- d
 }
