@@ -8,35 +8,36 @@
 package consumer
 
 import (
+	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
-	"github.com/Shopify/sarama"
 	"github.com/ant-libs-go/util"
-	cluster "github.com/bsm/sarama-cluster"
 	"github.com/cihub/seelog"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
-var DefaultReceiveFn = func(topic string, worker int, body string, msg *sarama.ConsumerMessage) (err error) {
-	seelog.Infof("[KAFKA] consumer receive message, topic: %s, worker: %d, partition:%d, offset:%d, key:%s, body:%s, tm:%s", topic, worker, msg.Partition, msg.Offset, string(msg.Key), body, msg.Timestamp.Format("2006-01-02 15:04:05"))
+var DefaultReceiveFn = func(topic string, worker int, body string, msg *kafka.Message) (err error) {
+	seelog.Infof("[KAFKA] consumer receive message, topic: %s, worker: %d, partition:%d, offset:%d, key:%s, body:%s, tm:%s", topic, worker, msg.TopicPartition.Partition, msg.TopicPartition.Offset, string(msg.Key), body, msg.Timestamp.Format("2006-01-02 15:04:05"))
 	return
 }
 
-var DefaultReceiveSelector = func(topic string, key string, receiveWorkerNum int, msg *sarama.ConsumerMessage) (r int) {
+var DefaultReceiveSelector = func(topic string, key string, receiveWorkerNum int, msg *kafka.Message) (r int) {
 	rand.Seed(time.Now().UnixNano())
 	return rand.Intn(receiveWorkerNum)
 }
 
 type entry struct {
-	instance *cluster.Consumer
-	msgChs   []chan *sarama.ConsumerMessage
+	instance *kafka.Consumer
+	msgChs   []chan *kafka.Message
 }
 
 type KafkaConsumer struct {
 	cfg             *Cfg
 	entries         []*entry
-	receiveFn       func(string, int, string, *sarama.ConsumerMessage) (err error)
-	receiveSelector func(topic string, key string, receiveWorkerNum int, msg *sarama.ConsumerMessage) (r int)
+	receiveFn       func(string, int, string, *kafka.Message) (err error)
+	receiveSelector func(topic string, key string, receiveWorkerNum int, msg *kafka.Message) (r int)
 }
 
 func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
@@ -48,50 +49,52 @@ func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
 	r.cfg.ReceiveWorkerNum = util.If(r.cfg.ReceiveWorkerNum > 0, r.cfg.ReceiveWorkerNum, 10).(int)
 	r.SetReceiveSelector(DefaultReceiveSelector)
 
-	kcfg := cluster.NewConfig()
-	kcfg.Group.Return.Notifications = true
-	kcfg.Consumer.Return.Errors = true
-	kcfg.Consumer.Offsets.AutoCommit.Enable = true
-	kcfg.Consumer.Offsets.AutoCommit.Interval = 1 * time.Second
-	kcfg.Consumer.Offsets.CommitInterval = 1 * time.Second
-	kcfg.Consumer.Offsets.Initial = sarama.OffsetOldest
+	kcfg := &kafka.ConfigMap{}
+	kcfg.SetKey("api.version.request", "true")
+	kcfg.SetKey("auto.offset.reset", "latest")
+	kcfg.SetKey("heartbeat.interval.ms", 3000)
+	kcfg.SetKey("session.timeout.ms", 30000)
+	kcfg.SetKey("max.poll.interval.ms", 120000)
+	kcfg.SetKey("fetch.max.bytes", 1024000)
+	kcfg.SetKey("max.partition.fetch.bytes", 256000)
+	kcfg.SetKey("go.events.channel.enable", true)
+	kcfg.SetKey("go.application.rebalance.enable", true)
+	kcfg.SetKey("security.protocol", "plaintext")
+	kcfg.SetKey("bootstrap.servers", strings.Join(cfg.Addrs, ","))
+	kcfg.SetKey("group.id", cfg.GroupId)
 
 	for i := 0; i < r.cfg.ConsumeWorkerNum; i++ {
-		entry := &entry{msgChs: make([]chan *sarama.ConsumerMessage, 0, 10)}
+		entry := &entry{msgChs: make([]chan *kafka.Message, 0, 10)}
 		for i := 0; i < cfg.ReceiveWorkerNum; i++ {
-			entry.msgChs = append(entry.msgChs, make(chan *sarama.ConsumerMessage, 500))
+			entry.msgChs = append(entry.msgChs, make(chan *kafka.Message, 500))
 		}
-		if entry.instance, err = cluster.NewConsumer(cfg.Addrs, cfg.GroupId, cfg.Topics, kcfg); err != nil {
+		if entry.instance, err = kafka.NewConsumer(kcfg); err != nil {
 			return
 		}
+		entry.instance.SubscribeTopics(cfg.Topics, nil)
 		r.entries = append(r.entries, entry)
 		go r.feedback(entry)
 	}
 	return
 }
 
-func (this *KafkaConsumer) SetReceiveSelector(fn func(topic string, key string, receiveWorkerNum int, msg *sarama.ConsumerMessage) int) {
+func (this *KafkaConsumer) SetReceiveSelector(fn func(topic string, key string, receiveWorkerNum int, msg *kafka.Message) int) {
 	this.receiveSelector = fn
 }
 
 func (this *KafkaConsumer) feedback(entry *entry) {
-	for {
-		select {
-		case msg, ok := <-entry.instance.Messages():
-			if !ok {
-				continue
-			}
-			entry.msgChs[this.receiveSelector(msg.Topic, string(msg.Key), this.cfg.ReceiveWorkerNum, msg)] <- msg
-		case err := <-entry.instance.Errors():
-			if err == nil {
-				continue
-			}
-			seelog.Errorf("[KAFKA] consumer notice error: %s", err.Error())
-		case ntf := <-entry.instance.Notifications():
-			if ntf == nil {
-				continue
-			}
-			seelog.Infof("[KAFKA] consumer rebalance: %+v", ntf)
+	for event := range entry.instance.Events() {
+		switch obj := event.(type) {
+		case *kafka.Message:
+			entry.msgChs[this.receiveSelector(*obj.TopicPartition.Topic, string(obj.Key), this.cfg.ReceiveWorkerNum, obj)] <- obj
+		case kafka.AssignedPartitions:
+			entry.instance.Assign(obj.Partitions)
+		case kafka.RevokedPartitions:
+			entry.instance.Unassign()
+		case kafka.Error:
+			seelog.Errorf("[KAFKA] consumer notice error: %s", obj.Error())
+		default:
+			fmt.Printf("[KAFKA] ignored event: %s\n", obj)
 		}
 	}
 }
@@ -107,17 +110,17 @@ func (this *KafkaConsumer) receive(idx int, entry *entry) {
 				continue
 			}
 			for {
-				if err := this.receiveFn(msg.Topic, idx, string(msg.Value), msg); err == nil {
+				if err := this.receiveFn(*msg.TopicPartition.Topic, idx, string(msg.Value), msg); err == nil {
 					break
 				}
 				time.Sleep(time.Second)
 			}
-			entry.instance.MarkOffset(msg, "") // mark message as processed
+			entry.instance.CommitMessage(msg) // mark message as processed
 		}
 	}
 }
 
-func (this *KafkaConsumer) Receive(rcvr func(string, int, string, *sarama.ConsumerMessage) error) (err error) {
+func (this *KafkaConsumer) Receive(rcvr func(string, int, string, *kafka.Message) error) (err error) {
 	this.receiveFn = rcvr
 
 	for _, one := range this.entries {

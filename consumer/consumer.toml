@@ -1,6 +1,6 @@
 [kafka.consumer.default]
-	addrs = ["127.0.0.1:9092"]
-	topics = ["business"]
-	group_id = "consumer_test"
-    consume_worker_num = 12
-    receive_worker_num = 2
+    addrs = ["127.0.0.1:9092"]
+    topics = ["business"]
+    group_id = "consumertest"
+    consume_worker_num = 1
+    receive_worker_num = 1

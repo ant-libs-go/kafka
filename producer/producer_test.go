@@ -18,8 +18,6 @@ import (
 	"github.com/ant-libs-go/config/parser"
 )
 
-var globalCfg *config.Config
-
 func TestMain(m *testing.M) {
 	config.New(parser.NewTomlParser(),
 		options.WithCfgSource("./producer.toml"),
@@ -30,7 +28,7 @@ func TestMain(m *testing.M) {
 func TestBasic(t *testing.T) {
 	i := 0
 	for {
-		err := DefaultProducerPublish("business", fmt.Sprintf("===>%d", i), fmt.Sprintf("testtesttest==%d", i))
+		err := DefaultProducerPublish(fmt.Sprintf("===>%d", i), fmt.Sprintf("testtesttest==%d", i), 0)
 		if err != nil {
 			fmt.Println("publish err:", err)
 		}

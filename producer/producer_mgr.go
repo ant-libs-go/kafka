@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Shopify/sarama"
 	"github.com/ant-libs-go/config"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 var (
@@ -33,7 +33,7 @@ type kafkaConfig struct {
 
 type Cfg struct {
 	Addrs             []string `toml:"addrs"`
-	Acks              int16    `toml:"acks"`                // 等待服务器完成到如何进度在响应
+	Acks              int      `toml:"acks"`                // 等待服务器完成到如何进度在响应
 	Topic             string   `toml:"topic"`               // 默认topic.当不指定topic时候使用该值
 	Partitioner       string   `toml:"partitioner"`         // 指定分区选择器
 	ReturnSuccesses   bool     `toml:"return_successes"`    // 是否等待成功的响应,仅RequireAcks设置不是NoReponse才有效
@@ -41,24 +41,24 @@ type Cfg struct {
 	ReturnFeedbackNum int      `toml:"return_feedback_num"` // 等待响应的并发数
 }
 
-func DefaultProducerPublish(topic string, body string, key string, partition int32) (err error) {
-	return Publish("default", topic, body, key, partition)
+func DefaultProducerPublish(body string, key string, partition int32) (err error) {
+	return Publish("default", body, key, partition)
 }
 
 func CloseDefaultProducer() {
 	CloseProducer("default")
 }
 
-func Publish(name string, topic string, body string, key string, partition int32) (err error) {
+func Publish(name string, body string, key string, partition int32) (err error) {
 	var producer *KafkaProducer
 	if producer, err = SafeProducer(name); err != nil {
 		return
 	}
-	producer.Publish(topic, body, key, partition)
+	producer.Publish(body, key, partition)
 	return
 }
 
-func SetSucFeedback(name string, fn func(*sarama.ProducerMessage, string)) (err error) {
+func SetSucFeedback(name string, fn func(*kafka.Message, string)) (err error) {
 	var producer *KafkaProducer
 	if producer, err = SafeProducer(name); err != nil {
 		return
@@ -67,7 +67,7 @@ func SetSucFeedback(name string, fn func(*sarama.ProducerMessage, string)) (err 
 	return
 }
 
-func SetFailFeedback(name string, fn func(*sarama.ProducerError, string)) (err error) {
+func SetFailFeedback(name string, fn func(*kafka.Message, string)) (err error) {
 	var producer *KafkaProducer
 	if producer, err = SafeProducer(name); err != nil {
 		return
