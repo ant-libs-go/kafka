@@ -8,49 +8,72 @@
 package producer
 
 import (
+	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
-	"github.com/Shopify/sarama"
 	"github.com/ant-libs-go/util"
 	"github.com/cihub/seelog"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 type KafkaProducer struct {
 	cfg          *Cfg
-	instance     sarama.AsyncProducer
-	sucFeedback  func(*sarama.ProducerMessage, string)
-	failFeedback func(*sarama.ProducerError, string)
+	instance     *kafka.Producer
+	partitioner  Partitioner
+	numPartition int32
+	sucFeedback  func(*kafka.Message, string)
+	failFeedback func(*kafka.Message, string)
 }
 
 var (
-	DefaultSucFeedbackFn = func(suc *sarama.ProducerMessage, body string) {
-		// seelog.Errorf("[KAFKA] producer publish success, topic: %s, message: %s", suc.Topic, body)
+	DefaultSucFeedbackFn = func(suc *kafka.Message, body string) {
+		seelog.Infof("[KAFKA] producer publish success, topic: %s, message: %s", *suc.TopicPartition.Topic, body)
 	}
-	DefaultFailFeedbackFn = func(fail *sarama.ProducerError, body string) {
-		seelog.Errorf("[KAFKA] producer publish err: %s, topic: %s, message: %s", fail.Error(), fail.Msg.Topic, body)
+	DefaultFailFeedbackFn = func(fail *kafka.Message, body string) {
+		seelog.Errorf("[KAFKA] producer publish err: %s, topic: %s, message: %s", fail.TopicPartition.Error, *fail.TopicPartition.Topic, body)
 	}
 )
 
 func NewKafkaProducer(cfg *Cfg) (r *KafkaProducer, err error) {
 	r = &KafkaProducer{cfg: cfg}
+	r.partitioner = r.parsePartitioner()()
 
-	kcfg := sarama.NewConfig()
-	kcfg.Producer.RequiredAcks = sarama.RequiredAcks(cfg.Acks)
-	kcfg.Producer.Partitioner = r.parsePartitioner()
-	kcfg.Producer.Return.Successes = cfg.ReturnSuccesses
-	kcfg.Producer.Return.Errors = cfg.ReturnErrors
-	kcfg.Version = sarama.V2_2_0_0
+	kcfg := &kafka.ConfigMap{}
+	kcfg.SetKey("api.version.request", "true")
+	kcfg.SetKey("message.max.bytes", 1000000)
+	kcfg.SetKey("linger.ms", 10)
+	kcfg.SetKey("retries", 30)
+	kcfg.SetKey("retry.backoff.ms", 1000)
+	kcfg.SetKey("acks", cfg.Acks)
+	kcfg.SetKey("security.protocol", "plaintext")
+	kcfg.SetKey("bootstrap.servers", strings.Join(cfg.Addrs, ","))
 
-	if r.instance, err = sarama.NewAsyncProducer(cfg.Addrs, kcfg); err != nil {
+	if r.instance, err = kafka.NewProducer(kcfg); err != nil {
 		return
 	}
+
+	var mgrCli *kafka.AdminClient
+	if mgrCli, err = kafka.NewAdminClientFromProducer(r.instance); err != nil {
+		return
+	}
+	var metadata *kafka.Metadata
+	if metadata, err = mgrCli.GetMetadata(&cfg.Topic, false, 10000); err != nil {
+		return
+	}
+	if _, ok := metadata.Topics[cfg.Topic]; !ok {
+		err = fmt.Errorf("topic#%s no partition", cfg.Topic)
+		return
+	}
+	r.numPartition = int32(len(metadata.Topics[cfg.Topic].Partitions))
+
 	rand.Seed(time.Now().UnixNano())
 
-	if kcfg.Producer.Return.Successes == true {
+	if cfg.ReturnSuccesses == true {
 		r.SetSucFeedback(DefaultSucFeedbackFn)
 	}
-	if kcfg.Producer.Return.Errors == true {
+	if cfg.ReturnErrors == true {
 		r.SetFailFeedback(DefaultFailFeedbackFn)
 	}
 
@@ -60,14 +83,14 @@ func NewKafkaProducer(cfg *Cfg) (r *KafkaProducer, err error) {
 	return
 }
 
-func (this *KafkaProducer) parsePartitioner() (r sarama.PartitionerConstructor) {
-	r = sarama.NewHashPartitioner
+func (this *KafkaProducer) parsePartitioner() (r PartitionerConstructor) {
+	r = NewHashPartitioner
 
-	if v, ok := map[string]sarama.PartitionerConstructor{
-		"manual": sarama.NewManualPartitioner,     // 手动选择分区，即使用msg中的partition
-		"random": sarama.NewRandomPartitioner,     // 随机选择分区
-		"round":  sarama.NewRoundRobinPartitioner, // 环形选择分区
-		"hash":   sarama.NewHashPartitioner,       // hash选择分区，即使用msg中的key生成hash
+	if v, ok := map[string]PartitionerConstructor{
+		"manual": NewManualPartitioner,     // 手动选择分区
+		"random": NewRandomPartitioner,     // 随机选择分区
+		"round":  NewRoundRobinPartitioner, // 环形选择分区
+		"hash":   NewHashPartitioner,       // hash选择分区，即使用msg中的key生成hash
 	}[this.cfg.Partitioner]; ok {
 		r = v
 	}
@@ -75,53 +98,47 @@ func (this *KafkaProducer) parsePartitioner() (r sarama.PartitionerConstructor) 
 }
 
 func (this *KafkaProducer) feedback() {
-	for {
-		select {
-		case suc, ok := <-this.instance.Successes():
-			if !ok {
-				continue
+	for event := range this.instance.Events() {
+		switch obj := event.(type) {
+		case *kafka.Message:
+			if obj.TopicPartition.Error == nil {
+				util.IfDo(this.sucFeedback != nil, func() { this.sucFeedback(obj, string(obj.Value)) })
+			} else {
+				util.IfDo(this.failFeedback != nil, func() { this.failFeedback(obj, string(obj.Value)) })
 			}
-			if this.sucFeedback == nil {
-				continue
-			}
-			body, _ := suc.Value.Encode()
-			this.sucFeedback(suc, string(body))
-		case fail, ok := <-this.instance.Errors():
-			if !ok {
-				continue
-			}
-			if this.failFeedback == nil {
-				continue
-			}
-			body, _ := fail.Msg.Value.Encode()
-			this.failFeedback(fail, string(body))
+		// case kafka.Error:
+		default:
+			// TODO
+			// fmt.Printf("Ignored event: %s\n", ev)
 		}
 	}
 }
 
-func (this *KafkaProducer) Publish(topic string, body string, key string, partition int32) {
-	if len(topic) == 0 {
-		topic = this.cfg.Topic
+func (this *KafkaProducer) Publish(body string, key string, partition int32) {
+	d := &kafka.Message{
+		TopicPartition: kafka.TopicPartition{
+			Topic:     &this.cfg.Topic,
+			Partition: partition},
+		Key:       []byte(key),
+		Value:     []byte(body),
+		Timestamp: time.Now(),
 	}
-	d := &sarama.ProducerMessage{
-		Topic:     topic,
-		Key:       sarama.StringEncoder(key),
-		Value:     sarama.ByteEncoder(body),
-		Partition: partition,
-		Timestamp: time.Now()}
-	this.instance.Input() <- d
+	d.TopicPartition.Partition, _ = this.partitioner.Partition(d, this.numPartition)
+	this.instance.ProduceChannel() <- d
 }
 
-func (this *KafkaProducer) SetSucFeedback(fn func(*sarama.ProducerMessage, string)) {
+func (this *KafkaProducer) SetSucFeedback(fn func(*kafka.Message, string)) {
 	this.sucFeedback = fn
 }
 
-func (this *KafkaProducer) SetFailFeedback(fn func(*sarama.ProducerError, string)) {
+func (this *KafkaProducer) SetFailFeedback(fn func(*kafka.Message, string)) {
 	this.failFeedback = fn
 }
 
 func (this *KafkaProducer) Close() {
-	this.instance.AsyncClose()
+	// Wait for message deliveries before shutting down
+	this.instance.Flush(15 * 1000)
+	this.instance.Close()
 }
 
 // vim: set noexpandtab ts=4 sts=4 sw=4 :

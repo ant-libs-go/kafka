@@ -13,13 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Shopify/sarama"
 	"github.com/ant-libs-go/config"
 	"github.com/ant-libs-go/config/options"
 	"github.com/ant-libs-go/config/parser"
+	"github.com/cihub/seelog"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
-
-var globalCfg *config.Config
 
 func TestMain(m *testing.M) {
 	config.New(parser.NewTomlParser(),
@@ -29,8 +28,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestBasic(t *testing.T) {
-	err := DefaultConsumerReceive(func(topic string, body string, msg *sarama.ConsumerMessage) error {
-		fmt.Printf("topic: %s, partition:%d, offset:%d, key:%s, body:%s\n", topic, msg.Partition, msg.Offset, string(msg.Key), body)
+	err := DefaultConsumerReceive(func(topic string, worker int, body string, msg *kafka.Message) error {
+		seelog.Infof("[KAFKA] consumer receive message, topic: %s, worker: %d, partition:%d, offset:%d, key:%s, body:%s, tm:%s", topic, worker, msg.TopicPartition.Partition, msg.TopicPartition.Offset, string(msg.Key), body, msg.Timestamp.Format("2006-01-02 15:04:05"))
 		if body == "testtesttest==9" {
 			return fmt.Errorf("err")
 		}
