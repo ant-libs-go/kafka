@@ -1,5 +1,5 @@
 # http
-基于nconfluent-kafka-go封装的kafka库
+基于confluent-kafka-go封装的kafka库
 
 # 功能
  - 简化Consumer实例初始化流程，基于配置自动对Consumer进行初始化且启动
