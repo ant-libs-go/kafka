@@ -4,6 +4,8 @@ github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/ant-libs-go/config v0.3.0 h1:whTgVybSXF4u8oZdwefrl6gs8cmUlqIUiyPG6Ka/6w8=
 github.com/ant-libs-go/config v0.3.0/go.mod h1:BhIZtbGh4Ir2vMOfT0d0ppsjCRb1vVo6jXbw3nkPKuk=
+github.com/ant-libs-go/config v0.4.1 h1:J/Hld5xCuGDSksHHq8nhfRoolrR4fq/CrPT3/gJPllY=
+github.com/ant-libs-go/config v0.4.1/go.mod h1:NrwKn5JCFiEoO8eOn9rwdGEr+hFUCNusXZPEPrAOUa8=
 github.com/ant-libs-go/looper v0.0.5 h1:S6nA6rGy7p6X2stzFUD4HMtB6nCoulFToYSpNIy3HAA=
 github.com/ant-libs-go/looper v0.0.5/go.mod h1:0LAYk+IDgVorTER/9yZ1JnAZVuhUn47aKc0QaQwVl8g=
 github.com/ant-libs-go/redis v0.0.1 h1:t8zr00Y5kVWIUsxw5tBdKJiV7UyHyutGJleFv7r2zDM=
@@ -52,6 +54,8 @@ github.com/kr/pretty v0.2.1/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfn
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0 h1:45sCR5RtlFHMR4UwH9sdQ5TC8v0qDQCHnXt+kaKSTVE=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
+github.com/philchia/agollo/v4 v4.1.3 h1:UH4P9Zhm6hONGx1Ce9OjWfqPbstcQtfO0Nkicw7M5d4=
+github.com/philchia/agollo/v4 v4.1.3/go.mod h1:SBdQmfqqu/XCWJ1MDzYcCL3X+p3VJ+uQBy0nxxqjexg=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/satori/go.uuid v1.2.0 h1:0uYX9dsZ2yD7q2RtLRtPSdGDWzjeM3TbMJP9utgA0ww=
@@ -81,6 +85,7 @@ golang.org/x/tools v0.0.0-20180917221912-90fa682c2a6e/go.mod h1:n7NCudcB/nEzxVGm
 golang.org/x/tools v0.0.0-20181030221726-6c7e314b6563/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=
 golang.org/x/tools v0.0.0-20190328211700-ab21143f2384/go.mod h1:LCzVGOaR6xXOjkQ3onu1FJEFr0SW1gC7cKk1uF8kGRs=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
+golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 google.golang.org/appengine v1.6.7/go.mod h1:8WjMMxjGQR8xUklV/ARdw2HLXBOI7O7uCIDZVag1xfc=
 google.golang.org/protobuf v0.0.0-20200109180630-ec00e32a8dfd/go.mod h1:DFci5gLYBciE7Vtevhsrf46CRTquxDuWsQurQQe4oz8=
 google.golang.org/protobuf v0.0.0-20200221191635-4d8936d0db64/go.mod h1:kwYJMbMJ01Woi6D6+Kah6886xMZcty6N08ah7+eCXa0=

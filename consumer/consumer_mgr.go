@@ -116,12 +116,7 @@ func LoadCfg(name string) (r *Cfg, err error) {
 func LoadCfgs() (r map[string]*Cfg, err error) {
 	r = map[string]*Cfg{}
 
-	cfg := &kafkaConfig{}
-	once.Do(func() {
-		_, err = config.Load(cfg)
-	})
-
-	cfg = config.Get(cfg).(*kafkaConfig)
+	cfg := config.Get(&kafkaConfig{}).(*kafkaConfig)
 	if err == nil && (cfg.Kafka == nil || cfg.Kafka.Cfgs == nil || len(cfg.Kafka.Cfgs) == 0) {
 		err = fmt.Errorf("not configed")
 	}

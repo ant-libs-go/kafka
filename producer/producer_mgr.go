@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/ant-libs-go/config"
+	"github.com/ant-libs-go/config/options"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
@@ -136,12 +137,15 @@ func loadCfg(name string) (r *Cfg, err error) {
 func loadCfgs() (r map[string]*Cfg, err error) {
 	r = map[string]*Cfg{}
 
-	cfg := &kafkaConfig{}
 	once.Do(func() {
-		_, err = config.Load(cfg)
+		config.Get(&kafkaConfig{}, options.WithOpOnChangeFn(func(cfg interface{}) {
+			lock.Lock()
+			defer lock.Unlock()
+			producers = map[string]*KafkaProducer{}
+		}))
 	})
 
-	cfg = config.Get(cfg).(*kafkaConfig)
+	cfg := config.Get(&kafkaConfig{}).(*kafkaConfig)
 	if err == nil && (cfg.Kafka == nil || cfg.Kafka.Cfgs == nil || len(cfg.Kafka.Cfgs) == 0) {
 		err = fmt.Errorf("not configed")
 	}
