@@ -115,7 +115,7 @@ func (this *KafkaConsumer) receive(idx int, entry *entry) {
 				}
 				time.Sleep(time.Second)
 			}
-			entry.instance.CommitMessage(msg) // mark message as processed
+			// entry.instance.CommitMessage(msg) // mark message as processed
 		}
 	}
 }
