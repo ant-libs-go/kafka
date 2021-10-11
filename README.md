@@ -15,7 +15,7 @@
 
 	go get github.com/ant-libs-go/http
 
-# KafkaConsumer 基本使用
+# KafkaConsumer 快速开始
 
 * toml 配置文件
     ```
@@ -46,7 +46,7 @@
     kafka.CloseConsumer("default")
     ```
 
-# KafkaProducer 基本使用
+# KafkaProducer 快速开始
 
 * toml 配置文件
     ```
