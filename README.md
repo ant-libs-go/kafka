@@ -1,13 +1,23 @@
-# http
+# Kafka
+
 基于confluent-kafka-go封装的kafka库
 
-# 功能
- - 简化Consumer实例初始化流程，基于配置自动对Consumer进行初始化且启动
- - 简化Producer实例初始化流程，基于配置自动对Producer进行初始化且启动
+[![License](https://img.shields.io/:license-apache%202-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![GoDoc](https://godoc.org/github.com/ant-libs-go/kafka?status.png)](http://godoc.org/github.com/ant-libs-go/kafka)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ant-libs-go/kafka)](https://goreportcard.com/report/github.com/ant-libs-go/kafka)
 
+# 特性
+
+* 简化Consumer实例初始化流程，基于配置自动对Consumer进行初始化且启动
+* 简化Producer实例初始化流程，基于配置自动对Producer进行初始化且启动
+
+## 安装
+
+	go get github.com/ant-libs-go/http
 
 # KafkaConsumer 基本使用
- - toml 配置文件
+
+* toml 配置文件
     ```
     [kafka.consumer.default]
         addrs = ["127.0.0.1:9092"]
@@ -17,7 +27,8 @@
         receive_worker_num = 1
     ```
 
- - 使用方法
+* 使用方法
+
 	```golang
     // 初始化config包，参考config模块
     code...
@@ -36,7 +47,8 @@
     ```
 
 # KafkaProducer 基本使用
- - toml 配置文件
+
+* toml 配置文件
     ```
     [kafka.producer.default]
         addrs = ["127.0.0.1:9092"]
@@ -48,7 +60,7 @@
         return_feedback_num = 10
     ```
 
- - 使用方法
+* 使用方法
 	```golang
     // 初始化config包，参考config模块
     code...
