@@ -54,7 +54,7 @@ func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
 	kcfg.SetKey("auto.offset.reset", "latest")
 	kcfg.SetKey("heartbeat.interval.ms", 3000)
 	kcfg.SetKey("session.timeout.ms", 30000)
-	kcfg.SetKey("max.poll.interval.ms", 120000)
+	kcfg.SetKey("max.poll.interval.ms", 300000)
 	kcfg.SetKey("fetch.max.bytes", 1024000)
 	kcfg.SetKey("max.partition.fetch.bytes", 256000)
 	kcfg.SetKey("go.events.channel.enable", true)
