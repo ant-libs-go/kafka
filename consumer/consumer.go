@@ -51,17 +51,18 @@ func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
 
 	kcfg := &kafka.ConfigMap{}
 	kcfg.SetKey("api.version.request", "true")
-	kcfg.SetKey("auto.offset.reset", "latest")
+	kcfg.SetKey("fetch.max.bytes", 10485760)
+	kcfg.SetKey("max.partition.fetch.bytes", 10485760)
+	kcfg.SetKey("max.poll.records", 500)
+	kcfg.SetKey("max.poll.interval.ms", 300000)
 	kcfg.SetKey("heartbeat.interval.ms", 3000)
 	kcfg.SetKey("session.timeout.ms", 30000)
-	kcfg.SetKey("max.poll.interval.ms", 300000)
-	kcfg.SetKey("fetch.max.bytes", 1024000)
-	kcfg.SetKey("max.partition.fetch.bytes", 256000)
+	kcfg.SetKey("auto.offset.reset", "latest")
+	kcfg.SetKey("security.protocol", "plaintext")
+	kcfg.SetKey("group.id", cfg.GroupId)
+	kcfg.SetKey("bootstrap.servers", strings.Join(cfg.Addrs, ","))
 	kcfg.SetKey("go.events.channel.enable", true)
 	kcfg.SetKey("go.application.rebalance.enable", true)
-	kcfg.SetKey("security.protocol", "plaintext")
-	kcfg.SetKey("bootstrap.servers", strings.Join(cfg.Addrs, ","))
-	kcfg.SetKey("group.id", cfg.GroupId)
 
 	for i := 0; i < r.cfg.ConsumeWorkerNum; i++ {
 		entry := &entry{msgChs: make([]chan *kafka.Message, 0, 10)}

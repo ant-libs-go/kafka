@@ -42,12 +42,12 @@ func NewKafkaProducer(cfg *Cfg) (r *KafkaProducer, err error) {
 
 	kcfg := &kafka.ConfigMap{}
 	kcfg.SetKey("api.version.request", "true")
-	kcfg.SetKey("message.max.bytes", 1000000)
-	kcfg.SetKey("linger.ms", 10)
-	kcfg.SetKey("retries", 30)
-	kcfg.SetKey("retry.backoff.ms", 1000)
 	kcfg.SetKey("acks", cfg.Acks)
+	kcfg.SetKey("retries", 3)
+	kcfg.SetKey("retry.backoff.ms", 1000)
+	kcfg.SetKey("linger.ms", 10)
 	kcfg.SetKey("security.protocol", "plaintext")
+	kcfg.SetKey("message.max.bytes", 1000000)
 	kcfg.SetKey("bootstrap.servers", strings.Join(cfg.Addrs, ","))
 
 	if r.instance, err = kafka.NewProducer(kcfg); err != nil {
