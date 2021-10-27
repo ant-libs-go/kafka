@@ -8,7 +8,6 @@
 package consumer
 
 import (
-	"fmt"
 	"math/rand"
 	"strings"
 	"time"
@@ -49,14 +48,17 @@ func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
 	r.cfg.ReceiveWorkerNum = util.If(r.cfg.ReceiveWorkerNum > 0, r.cfg.ReceiveWorkerNum, 10).(int)
 	r.SetReceiveSelector(DefaultReceiveSelector)
 
+	// see: https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 	kcfg := &kafka.ConfigMap{}
 	kcfg.SetKey("api.version.request", "true")
 	kcfg.SetKey("fetch.max.bytes", 10485760)
-	kcfg.SetKey("max.partition.fetch.bytes", 10485760)
+	kcfg.SetKey("max.partition.fetch.bytes", 1048576)
 	kcfg.SetKey("max.poll.interval.ms", 600000)
 	kcfg.SetKey("heartbeat.interval.ms", 3000)
 	kcfg.SetKey("session.timeout.ms", 30000)
 	kcfg.SetKey("auto.offset.reset", "latest")
+	kcfg.SetKey("enable.auto.commit", true)
+	kcfg.SetKey("auto.commit.interval.ms", 5000)
 	kcfg.SetKey("security.protocol", "plaintext")
 	kcfg.SetKey("group.id", cfg.GroupId)
 	kcfg.SetKey("bootstrap.servers", strings.Join(cfg.Addrs, ","))
@@ -94,7 +96,7 @@ func (this *KafkaConsumer) feedback(entry *entry) {
 		case kafka.Error:
 			seelog.Errorf("[KAFKA] consumer notice error: %s", obj.Error())
 		default:
-			fmt.Printf("[KAFKA] ignored event: %s\n", obj)
+			seelog.Infof("[KAFKA] ignored event: %s\n", obj)
 		}
 	}
 }

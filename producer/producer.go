@@ -40,6 +40,7 @@ func NewKafkaProducer(cfg *Cfg) (r *KafkaProducer, err error) {
 	r = &KafkaProducer{cfg: cfg}
 	r.partitioner = r.parsePartitioner()()
 
+	// see: https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 	kcfg := &kafka.ConfigMap{}
 	kcfg.SetKey("api.version.request", "true")
 	kcfg.SetKey("acks", cfg.Acks)
@@ -47,7 +48,7 @@ func NewKafkaProducer(cfg *Cfg) (r *KafkaProducer, err error) {
 	kcfg.SetKey("retry.backoff.ms", 1000)
 	kcfg.SetKey("linger.ms", 10)
 	kcfg.SetKey("security.protocol", "plaintext")
-	kcfg.SetKey("message.max.bytes", 1000000)
+	kcfg.SetKey("message.max.bytes", 1048576)
 	kcfg.SetKey("bootstrap.servers", strings.Join(cfg.Addrs, ","))
 
 	if r.instance, err = kafka.NewProducer(kcfg); err != nil {
@@ -108,8 +109,7 @@ func (this *KafkaProducer) feedback() {
 			}
 		// case kafka.Error:
 		default:
-			// TODO
-			// fmt.Printf("Ignored event: %s\n", ev)
+			seelog.Infof("[KAFKA] ignored event: %s\n", obj)
 		}
 	}
 }

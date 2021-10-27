@@ -21,7 +21,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	config.New(parser.NewTomlParser(),
+	config.NewConfig(parser.NewTomlParser(),
 		options.WithCfgSource("./consumer.toml"),
 		options.WithCheckInterval(1))
 	os.Exit(m.Run())
