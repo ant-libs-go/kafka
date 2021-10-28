@@ -39,7 +39,7 @@ type Cfg struct {
 	ReceiveWorkerNum int      `toml:"receive_worker_num"` // 业务实际并发数，默认10
 }
 
-func DefaultConsumerReceive(fn func(string, int, string, *kafka.Message) error) (err error) {
+func DefaultConsumerReceive(fn func(consumeWorkerIdx int, receiveWorkerIdx int, topic string, body []byte, msg *kafka.Message) error) (err error) {
 	return Receive("default", fn)
 }
 
@@ -47,7 +47,7 @@ func CloseDefaultConsumer() {
 	CloseConsumer("default")
 }
 
-func Receive(name string, fn func(string, int, string, *kafka.Message) error) (err error) {
+func Receive(name string, fn func(consumeWorkerIdx int, receiveWorkerIdx int, topic string, body []byte, msg *kafka.Message) error) (err error) {
 	var consumer *KafkaConsumer
 	if consumer, err = SafeConsumer(name); err != nil {
 		return
@@ -107,7 +107,7 @@ func LoadCfg(name string) (r *Cfg, err error) {
 		return
 	}
 	if r = cfgs[name]; r == nil {
-		err = fmt.Errorf("kafka#%s not configed", name)
+		err = fmt.Errorf("[KAFKA CONSUMER] kafka#%s not configed", name)
 		return
 	}
 	return
@@ -118,10 +118,10 @@ func LoadCfgs() (r map[string]*Cfg, err error) {
 
 	cfg := config.Get(&kafkaConfig{}).(*kafkaConfig)
 	if err == nil && (cfg.Kafka == nil || cfg.Kafka.Cfgs == nil || len(cfg.Kafka.Cfgs) == 0) {
-		err = fmt.Errorf("not configed")
+		err = fmt.Errorf("[KAFKA CONSUMER] not configed")
 	}
 	if err != nil {
-		err = fmt.Errorf("kafka load cfgs error, %s", err)
+		err = fmt.Errorf("[KAFKA CONSUMER] kafka load cfgs error, %s", err)
 		return
 	}
 	r = cfg.Kafka.Cfgs

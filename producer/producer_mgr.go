@@ -128,7 +128,7 @@ func loadCfg(name string) (r *Cfg, err error) {
 		return
 	}
 	if r = cfgs[name]; r == nil {
-		err = fmt.Errorf("kafka#%s not configed", name)
+		err = fmt.Errorf("[KAFKA PRODUCER] kafka#%s not configed", name)
 		return
 	}
 	return
@@ -147,10 +147,10 @@ func loadCfgs() (r map[string]*Cfg, err error) {
 
 	cfg := config.Get(&kafkaConfig{}).(*kafkaConfig)
 	if err == nil && (cfg.Kafka == nil || cfg.Kafka.Cfgs == nil || len(cfg.Kafka.Cfgs) == 0) {
-		err = fmt.Errorf("not configed")
+		err = fmt.Errorf("[KAFKA PRODUCER] not configed")
 	}
 	if err != nil {
-		err = fmt.Errorf("kafka load cfgs error, %s", err)
+		err = fmt.Errorf("[KAFKA PRODUCER] load cfgs error, %s", err)
 		return
 	}
 	r = cfg.Kafka.Cfgs
