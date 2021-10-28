@@ -28,9 +28,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestBasic(t *testing.T) {
-	err := DefaultConsumerReceive(func(topic string, worker int, body string, msg *kafka.Message) error {
-		seelog.Infof("[KAFKA] consumer receive message, topic: %s, worker: %d, partition:%d, offset:%d, key:%s, body:%s, tm:%s", topic, worker, msg.TopicPartition.Partition, msg.TopicPartition.Offset, string(msg.Key), body, msg.Timestamp.Format("2006-01-02 15:04:05"))
-		if body == "testtesttest==9" {
+	err := DefaultConsumerReceive(func(consumeWorkerIdx int, receiveWorkerIdx int, topic string, body []byte, msg *kafka.Message) error {
+		seelog.Infof("[KAFKA CONSUMER] receive message: %s#%d|%d, tm:%s, key:%s, body:%s", msg.TopicPartition.String(), consumeWorkerIdx, receiveWorkerIdx, msg.Timestamp.Format("2006-01-02 15:04:05"), string(msg.Key), string(body))
+		if string(body) == "testtesttest==9" {
 			return fmt.Errorf("err")
 		}
 		return nil
