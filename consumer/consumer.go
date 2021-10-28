@@ -1,7 +1,7 @@
 /* ######################################################################
 # Author: (zfly1207@126.com)
 # Created Time: 2021-04-15 13:27:01
-# File Name: kafka/consumer/consumer.go
+# File Name: consumer.go
 # Description:
 ####################################################################### */
 
@@ -17,8 +17,8 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
-var DefaultReceiveFn = func(topic string, worker int, body string, msg *kafka.Message) (err error) {
-	seelog.Infof("[KAFKA] consumer receive message, topic: %s, worker: %d, partition:%d, offset:%d, key:%s, body:%s, tm:%s", topic, worker, msg.TopicPartition.Partition, msg.TopicPartition.Offset, string(msg.Key), body, msg.Timestamp.Format("2006-01-02 15:04:05"))
+var DefaultReceiveFn = func(consumeWorkerIdx int, receiveWorkerIdx int, topic string, body []byte, msg *kafka.Message) (err error) {
+	seelog.Infof("[KAFKA CONSUMER] receive message: %s#%d|%d, tm:%s, key:%s, body:%s", msg.TopicPartition.String(), consumeWorkerIdx, receiveWorkerIdx, msg.Timestamp.Format("2006-01-02 15:04:05"), string(msg.Key), string(body))
 	return
 }
 
@@ -28,6 +28,7 @@ var DefaultReceiveSelector = func(topic string, key string, receiveWorkerNum int
 }
 
 type entry struct {
+	idx      int
 	instance *kafka.Consumer
 	msgChs   []chan *kafka.Message
 }
@@ -35,7 +36,7 @@ type entry struct {
 type KafkaConsumer struct {
 	cfg             *Cfg
 	entries         []*entry
-	receiveFn       func(string, int, string, *kafka.Message) (err error)
+	receiveFn       func(consumeWorkerIdx int, receiveWorkerIdx int, topic string, body []byte, msg *kafka.Message) (err error)
 	receiveSelector func(topic string, key string, receiveWorkerNum int, msg *kafka.Message) (r int)
 }
 
@@ -66,7 +67,7 @@ func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
 	kcfg.SetKey("go.application.rebalance.enable", true)
 
 	for i := 0; i < r.cfg.ConsumeWorkerNum; i++ {
-		entry := &entry{msgChs: make([]chan *kafka.Message, 0, 10)}
+		entry := &entry{idx: i, msgChs: make([]chan *kafka.Message, 0, 10)}
 		for i := 0; i < cfg.ReceiveWorkerNum; i++ {
 			entry.msgChs = append(entry.msgChs, make(chan *kafka.Message, 500))
 		}
@@ -94,17 +95,17 @@ func (this *KafkaConsumer) feedback(entry *entry) {
 		case kafka.RevokedPartitions:
 			entry.instance.Unassign()
 		case kafka.Error:
-			seelog.Errorf("[KAFKA] consumer notice error: %s", obj.Error())
+			seelog.Errorf("[KAFKA CONSUMER] notice error: %s", obj.Error())
 		default:
-			seelog.Infof("[KAFKA] ignored event: %s\n", obj)
+			seelog.Infof("[KAFKA CONSUMER] ignored event: %s", obj)
 		}
 	}
 }
 
-func (this *KafkaConsumer) receive(idx int, entry *entry) {
+func (this *KafkaConsumer) receive(receiveWorkerIdx int, entry *entry) {
 	for {
 		select {
-		case msg, ok := <-entry.msgChs[idx]:
+		case msg, ok := <-entry.msgChs[receiveWorkerIdx]:
 			if ok == false {
 				return
 			}
@@ -112,7 +113,7 @@ func (this *KafkaConsumer) receive(idx int, entry *entry) {
 				continue
 			}
 			for {
-				if err := this.receiveFn(*msg.TopicPartition.Topic, idx, string(msg.Value), msg); err == nil {
+				if err := this.receiveFn(entry.idx, receiveWorkerIdx, *msg.TopicPartition.Topic, msg.Value, msg); err == nil {
 					break
 				}
 				time.Sleep(time.Second)
@@ -122,7 +123,7 @@ func (this *KafkaConsumer) receive(idx int, entry *entry) {
 	}
 }
 
-func (this *KafkaConsumer) Receive(rcvr func(string, int, string, *kafka.Message) error) (err error) {
+func (this *KafkaConsumer) Receive(rcvr func(consumeWorkerIdx int, receiveWorkerIdx int, topic string, body []byte, msg *kafka.Message) error) (err error) {
 	this.receiveFn = rcvr
 
 	for _, one := range this.entries {

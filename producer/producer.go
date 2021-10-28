@@ -29,10 +29,10 @@ type KafkaProducer struct {
 
 var (
 	DefaultSucFeedbackFn = func(suc *kafka.Message, body string) {
-		seelog.Infof("[KAFKA] producer publish success, topic: %s, message: %s", *suc.TopicPartition.Topic, body)
+		seelog.Infof("[KAFKA PRODUCER] publish success: %s, message: %s", suc.TopicPartition.String(), body)
 	}
 	DefaultFailFeedbackFn = func(fail *kafka.Message, body string) {
-		seelog.Errorf("[KAFKA] producer publish err: %s, topic: %s, message: %s", fail.TopicPartition.Error, *fail.TopicPartition.Topic, body)
+		seelog.Errorf("[KAFKA PRODUCER] publish fail: %s, message: %s", fail.TopicPartition.String(), body)
 	}
 )
 
@@ -64,7 +64,7 @@ func NewKafkaProducer(cfg *Cfg) (r *KafkaProducer, err error) {
 		return
 	}
 	if _, ok := metadata.Topics[cfg.Topic]; !ok {
-		err = fmt.Errorf("topic#%s no partition", cfg.Topic)
+		err = fmt.Errorf("[KAFKA PRODUCER] topic#%s no partition", cfg.Topic)
 		return
 	}
 	r.numPartition = int32(len(metadata.Topics[cfg.Topic].Partitions))
@@ -107,9 +107,10 @@ func (this *KafkaProducer) feedback() {
 			} else {
 				util.IfDo(this.failFeedback != nil, func() { this.failFeedback(obj, string(obj.Value)) })
 			}
-		// case kafka.Error:
+		case kafka.Error:
+			seelog.Errorf("[KAFKA PRODUCER] notice error: %s", obj.Error())
 		default:
-			seelog.Infof("[KAFKA] ignored event: %s\n", obj)
+			seelog.Infof("[KAFKA PRODUCER] ignored event: %s", obj)
 		}
 	}
 }
