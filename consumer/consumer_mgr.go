@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/ant-libs-go/config"
+	"github.com/ant-libs-go/safe_stop"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
@@ -39,20 +40,43 @@ type Cfg struct {
 	ReceiveWorkerNum int      `toml:"receive_worker_num"` // 业务实际并发数，默认10
 }
 
-func DefaultConsumerReceive(fn func(consumeWorkerIdx int, receiveWorkerIdx int, topic string, body []byte, msg *kafka.Message) error) (err error) {
-	return Receive("default", fn)
+func StartDefaultConsumer(
+	fn func(consumeWorkerIdx int, receiveWorkerIdx int, topic string, body []byte, msg *kafka.Message) error,
+	selector func(topic string, key string, receiveWorkerNum int, msg *kafka.Message) (r int)) (err error) {
+
+	return StartReceive("default", fn, selector)
 }
 
-func CloseDefaultConsumer() {
-	CloseConsumer("default")
+func StopDefaultConsumer() (err error) {
+	return StopReceive("default")
 }
 
-func Receive(name string, fn func(consumeWorkerIdx int, receiveWorkerIdx int, topic string, body []byte, msg *kafka.Message) error) (err error) {
+func DefaultConsumer() (r *KafkaConsumer) {
+	return Consumer("default")
+}
+
+func StartReceive(
+	name string,
+	fn func(consumeWorkerIdx int, receiveWorkerIdx int, topic string, body []byte, msg *kafka.Message) error,
+	selector func(topic string, key string, receiveWorkerNum int, msg *kafka.Message) (r int)) (err error) {
+
+	safe_stop.Lock(1)
 	var consumer *KafkaConsumer
-	if consumer, err = SafeConsumer(name); err != nil {
-		return
+	if consumer, err = SafeConsumer(name); err == nil {
+		if selector != nil {
+			consumer.SetReceiveSelector(selector)
+		}
+		err = consumer.Receive(fn)
 	}
-	consumer.Receive(fn)
+	return
+}
+
+func StopReceive(name string) (err error) {
+	defer safe_stop.Unlock()
+	var consumer *KafkaConsumer
+	if consumer, err = SafeConsumer(name); err == nil {
+		consumer.Close()
+	}
 	return
 }
 
@@ -66,14 +90,6 @@ func Consumer(name string) (r *KafkaConsumer) {
 
 func SafeConsumer(name string) (r *KafkaConsumer, err error) {
 	return getConsumer(name)
-}
-
-func CloseConsumer(name string) {
-	consumer, _ := SafeConsumer(name)
-	if consumer == nil {
-		return
-	}
-	consumer.Close()
 }
 
 func getConsumer(name string) (r *KafkaConsumer, err error) {

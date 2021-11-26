@@ -1,7 +1,7 @@
 /* ######################################################################
-# Author: (zhengfei@dianzhong.com)
+# Author: (zfly1207@126.com)
 # Created Time: 2021-06-07 13:34:48
-# File Name: logics/depend_mgr/depend_mgr.go
+# File Name: depend_mgr.go
 # Description:
 ####################################################################### */
 
@@ -20,22 +20,59 @@ import (
 	rds "github.com/gomodule/redigo/redis"
 )
 
-const DEPEND_KEY = "union_event_tracing_depend"
+type Options struct {
+	checkInterval time.Duration
+	delayOffset   int64
+	timeout       time.Duration
+}
+
+type Option func(o *Options)
+
+func WithCheckInterval(inp time.Duration) Option {
+	return func(o *Options) {
+		o.checkInterval = inp
+	}
+}
+
+func WithDelayOffset(inp int64) Option {
+	return func(o *Options) {
+		o.delayOffset = inp
+	}
+}
+
+func WithTimeout(inp time.Duration) Option {
+	return func(o *Options) {
+		o.timeout = inp
+	}
+}
 
 type DependMgr struct {
-	m          map[string]map[int32]int64
-	cli        rds.Pool
-	lock       sync.RWMutex
-	relations  map[string]string
+	cli       rds.Pool
+	lock      sync.RWMutex
+	key       string
+	relations map[string]string
+	options   map[string]*Options
+	m         map[string]map[int32]int64 // topic、partition、offset
+
 	loopHandle *looper.Looper
 }
 
-func New(cli rds.Pool, relations map[string]string) *DependMgr {
-	o := &DependMgr{}
-	o.cli = cli
-	o.m = map[string]map[int32]int64{}
-	o.relations = relations
-	return o
+func New(cli rds.Pool, key string) *DependMgr {
+	return &DependMgr{
+		cli:       cli,
+		key:       key,
+		relations: map[string]string{},
+		options:   map[string]*Options{},
+		m:         map[string]map[int32]int64{}}
+}
+
+func (this *DependMgr) Add(topic string, frontTopic string, opts ...Option) *DependMgr {
+	this.options[topic] = &Options{checkInterval: 5 * time.Second}
+	for _, opt := range opts {
+		opt(this.options[topic])
+	}
+	this.relations[topic] = frontTopic
+	return this
 }
 
 func (this *DependMgr) Start() {
@@ -60,7 +97,7 @@ func (this *DependMgr) load() {
 	conn := this.cli.Get()
 	defer conn.Close()
 
-	vals, err := rds.StringMap(conn.Do("HGETALL", DEPEND_KEY))
+	vals, err := rds.StringMap(conn.Do("HGETALL", this.key))
 	if err != nil {
 		seelog.Infof("[DEPEND_MGR] load fail, %s", err)
 		return
@@ -88,7 +125,7 @@ func (this *DependMgr) flush() {
 	}
 
 	d := make([]interface{}, 0, 10)
-	d = append(d, DEPEND_KEY)
+	d = append(d, this.key)
 
 	for topic, v := range this.m {
 		for partition, offset := range v {
@@ -140,13 +177,14 @@ func (this *DependMgr) GetFrontTopicOffset(topic string) (r int64) {
 }
 
 func (this *DependMgr) Wait(topic string, offset int64) {
-	for {
+	lastTm := time.Now().Add(time.Duration(this.options[topic].timeout))
+	for this.options[topic].timeout == 0 || time.Now().Before(lastTm) {
 		frontTopicOffset := this.GetFrontTopicOffset(topic)
-		if offset < frontTopicOffset {
+		if frontTopicOffset-offset > this.options[topic].delayOffset {
 			break
 		}
 		seelog.Infof("topic#%s(%d) it has depend(%d) unable to start, wait 5 second", topic, offset, frontTopicOffset)
-		time.Sleep(5 * time.Second)
+		time.Sleep(this.options[topic].checkInterval)
 	}
 }
 
