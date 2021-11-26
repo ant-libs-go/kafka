@@ -28,10 +28,7 @@ func TestMain(m *testing.M) {
 func TestBasic(t *testing.T) {
 	i := 0
 	for {
-		err := DefaultProducerPublish(fmt.Sprintf("===>%d", i), fmt.Sprintf("testtesttest==%d", i), 0)
-		if err != nil {
-			fmt.Println("publish err:", err)
-		}
+		DefaultProducer().Publish(fmt.Sprintf("===>%d", i), fmt.Sprintf("testtesttest==%d", i), 0)
 		i++
 		//time.Sleep(time.Millisecond)
 		time.Sleep(time.Second)
