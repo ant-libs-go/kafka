@@ -47,7 +47,7 @@ func WithTimeout(inp time.Duration) Option {
 }
 
 type DependMgr struct {
-	cli       rds.Pool
+	cli       *rds.Pool
 	lock      sync.RWMutex
 	key       string
 	relations map[string]string
@@ -57,7 +57,7 @@ type DependMgr struct {
 	loopHandle *looper.Looper
 }
 
-func New(cli rds.Pool, key string) *DependMgr {
+func New(cli *rds.Pool, key string) *DependMgr {
 	return &DependMgr{
 		cli:       cli,
 		key:       key,
