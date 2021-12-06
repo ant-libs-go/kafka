@@ -69,7 +69,7 @@ func NewKafkaConsumer(cfg *Cfg) (r *KafkaConsumer, err error) {
 	for i := 0; i < r.cfg.ConsumeWorkerNum; i++ {
 		entry := &entry{idx: i, msgChs: make([]chan *kafka.Message, 0, 10)}
 		for i := 0; i < cfg.ReceiveWorkerNum; i++ {
-			entry.msgChs = append(entry.msgChs, make(chan *kafka.Message, 500))
+			entry.msgChs = append(entry.msgChs, make(chan *kafka.Message))
 		}
 		if entry.instance, err = kafka.NewConsumer(kcfg); err != nil {
 			return
