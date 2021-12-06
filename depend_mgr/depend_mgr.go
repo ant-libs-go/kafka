@@ -21,6 +21,7 @@ import (
 )
 
 type Options struct {
+	frontTopic    string
 	checkInterval time.Duration
 	delayOffset   int64
 	timeout       time.Duration
@@ -47,31 +48,28 @@ func WithTimeout(inp time.Duration) Option {
 }
 
 type DependMgr struct {
-	cli       *rds.Pool
-	lock      sync.RWMutex
-	key       string
-	relations map[string]string
-	options   map[string]*Options
-	m         map[string]map[int32]int64 // topic、partition、offset
+	cli  *rds.Pool
+	lock sync.RWMutex
+	key  string
+	opts map[string]*Options
+	m    map[string]map[int32]int64 // topic、partition、offset
 
 	loopHandle *looper.Looper
 }
 
 func New(cli *rds.Pool, key string) *DependMgr {
 	return &DependMgr{
-		cli:       cli,
-		key:       key,
-		relations: map[string]string{},
-		options:   map[string]*Options{},
-		m:         map[string]map[int32]int64{}}
+		cli:  cli,
+		key:  key,
+		opts: map[string]*Options{},
+		m:    map[string]map[int32]int64{}}
 }
 
 func (this *DependMgr) Add(topic string, frontTopic string, opts ...Option) *DependMgr {
-	this.options[topic] = &Options{checkInterval: 5 * time.Second}
-	for _, opt := range opts {
-		opt(this.options[topic])
+	this.opts[topic] = &Options{frontTopic: frontTopic, checkInterval: 1 * time.Second}
+	for _, one := range opts {
+		one(this.opts[topic])
 	}
-	this.relations[topic] = frontTopic
 	return this
 }
 
@@ -91,6 +89,14 @@ func (this *DependMgr) Stop() {
 		return
 	}
 	this.loopHandle.Stop()
+}
+
+func (this *DependMgr) options(topic string) (r *Options) {
+	var ok bool
+	if r, ok = this.opts[topic]; !ok {
+		r = &Options{}
+	}
+	return
 }
 
 func (this *DependMgr) load() {
@@ -158,34 +164,47 @@ func (this *DependMgr) MarkTopicOffset(topic string, partition int32, offset int
 func (this *DependMgr) GetFrontTopicOffset(topic string) (r int64) {
 	r = time.Now().UnixNano()
 
-	frontTopic := this.relations[topic]
-	if len(frontTopic) == 0 {
+	if len(this.options(topic).frontTopic) == 0 {
 		return
 	}
 
 	this.lock.RLock()
 	defer this.lock.RUnlock()
 
-	if _, ok := this.m[frontTopic]; !ok {
+	if _, ok := this.m[this.options(topic).frontTopic]; !ok {
 		return
 	}
 
-	for _, v := range this.m[frontTopic] {
+	for _, v := range this.m[this.options(topic).frontTopic] {
 		r = util.MinInt64(r, v)
 	}
 	return
 }
 
-func (this *DependMgr) Wait(topic string, offset int64) {
-	lastTm := time.Now().Add(time.Duration(this.options[topic].timeout))
-	for this.options[topic].timeout == 0 || time.Now().Before(lastTm) {
-		frontTopicOffset := this.GetFrontTopicOffset(topic)
-		if frontTopicOffset-offset > this.options[topic].delayOffset {
-			break
-		}
-		seelog.Infof("topic#%s(%d) it has depend(%d) unable to start, wait 5 second", topic, offset, frontTopicOffset)
-		time.Sleep(this.options[topic].checkInterval)
+func (this *DependMgr) Wait(topic string, offset int64) (isTimeout bool) {
+	if len(this.options(topic).frontTopic) == 0 {
+		return
 	}
+
+	// 当超时时间为0时代表不超时，为实现方便设置极值为30天
+	timeout := time.After(util.If(this.options(topic).timeout > 0, this.options(topic).timeout, time.Hour*24*30).(time.Duration))
+
+	retry := 0
+
+WHILE:
+	select {
+	case <-timeout:
+		isTimeout = true
+	case <-time.After(util.If(retry == 0, time.Duration(0), this.options(topic).checkInterval).(time.Duration)):
+		// 当前topic的offset 晚于 前置topic的offset + 需延迟的offset量时，继续等待
+		if offset > this.GetFrontTopicOffset(topic)+this.options(topic).delayOffset {
+			retry++
+			seelog.Infof("%s(%d) it has depend %s(%d) unable to start, wait %s, try %d times",
+				topic, offset, this.options(topic).frontTopic, this.GetFrontTopicOffset(topic), this.options(topic).checkInterval, retry)
+			goto WHILE
+		}
+	}
+	return
 }
 
 // vim: set noexpandtab ts=4 sts=4 sw=4 :
