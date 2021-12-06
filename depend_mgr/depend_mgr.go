@@ -199,7 +199,7 @@ WHILE:
 		// 当前topic的offset 晚于 前置topic的offset + 需延迟的offset量时，继续等待
 		if offset > this.GetFrontTopicOffset(topic)+this.options(topic).delayOffset {
 			retry++
-			seelog.Infof("%s(%d) it has depend %s(%d) unable to start, wait %s, try %d times",
+			seelog.Infof("[DEPEND_MGR] %s(%d) it has depend %s(%d) unable to start, wait %s, try %d times",
 				topic, offset, this.options(topic).frontTopic, this.GetFrontTopicOffset(topic), this.options(topic).checkInterval, retry)
 			goto WHILE
 		}
