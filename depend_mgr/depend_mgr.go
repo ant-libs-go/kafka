@@ -148,10 +148,8 @@ func (this *DependMgr) flush() {
 	}
 }
 
-func (this *DependMgr) MarkTopicOffset(topic string, partition int32, offset int64) {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-
+// unsafe
+func (this *DependMgr) markTopicOffset(topic string, partition int32, offset int64) {
 	if _, ok := this.m[topic]; !ok {
 		this.m[topic] = map[int32]int64{}
 	}
@@ -159,6 +157,42 @@ func (this *DependMgr) MarkTopicOffset(topic string, partition int32, offset int
 		this.m[topic][partition] = 0
 	}
 	this.m[topic][partition] = util.MaxInt64(this.m[topic][partition], offset)
+}
+
+func (this *DependMgr) MarkTopicOffset(topic string, partition int32, offset int64) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+
+	this.markTopicOffset(topic, partition, offset)
+}
+
+func (this *DependMgr) MarkTopicOffsetForAllPartition(topic string, offset int64) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+
+	for partition, _ := range this.m[topic] {
+		this.markTopicOffset(topic, partition, offset)
+	}
+}
+
+func (this *DependMgr) GetTopicOffset(topic string) (r int64) {
+	r = time.Now().UnixNano()
+
+	if len(topic) == 0 {
+		return
+	}
+
+	this.lock.RLock()
+	defer this.lock.RUnlock()
+
+	if _, ok := this.m[topic]; !ok {
+		return
+	}
+
+	for _, v := range this.m[topic] {
+		r = util.MinInt64(r, v)
+	}
+	return
 }
 
 func (this *DependMgr) GetFrontTopicOffset(topic string) (r int64) {
