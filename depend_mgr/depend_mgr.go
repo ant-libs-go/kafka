@@ -175,15 +175,9 @@ func (this *DependMgr) MarkTopicOffsetForAllPartition(topic string, offset int64
 	}
 }
 
-func (this *DependMgr) GetTopicOffset(topic string) (r int64) {
-	r = time.Now().UnixNano()
-
-	if len(topic) == 0 {
-		return
-	}
-
-	this.lock.RLock()
-	defer this.lock.RUnlock()
+// unsafe
+func (this *DependMgr) getTopicOffset(topic string) (r int64) {
+	r = time.Now().UnixNano() // TODO ?
 
 	if _, ok := this.m[topic]; !ok {
 		return
@@ -195,23 +189,19 @@ func (this *DependMgr) GetTopicOffset(topic string) (r int64) {
 	return
 }
 
-func (this *DependMgr) GetFrontTopicOffset(topic string) (r int64) {
-	r = time.Now().UnixNano()
-
-	if len(this.options(topic).frontTopic) == 0 {
-		return
-	}
-
+func (this *DependMgr) GetTopicOffset(topic string) (r int64) {
 	this.lock.RLock()
 	defer this.lock.RUnlock()
 
-	if _, ok := this.m[this.options(topic).frontTopic]; !ok {
-		return
-	}
+	r = this.getTopicOffset(topic)
+	return
+}
 
-	for _, v := range this.m[this.options(topic).frontTopic] {
-		r = util.MinInt64(r, v)
-	}
+func (this *DependMgr) GetFrontTopicOffset(topic string) (r int64) {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
+
+	r = this.getTopicOffset(this.options(topic).frontTopic)
 	return
 }
 
