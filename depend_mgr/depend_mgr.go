@@ -211,15 +211,19 @@ func (this *DependMgr) Wait(topic string, offset int64) (isTimeout bool) {
 	}
 
 	// 当超时时间为0时代表不超时，为实现方便设置极值为30天
-	timeout := time.After(util.If(this.options(topic).timeout > 0, this.options(topic).timeout, time.Hour*24*30).(time.Duration))
+	timeout := time.NewTimer(util.If(this.options(topic).timeout > 0, this.options(topic).timeout, time.Hour*24*30).(time.Duration))
+	defer timeout.Stop()
 
 	retry := 0
 
+	ticker := time.NewTicker(this.options(topic).checkInterval)
+	defer ticker.Stop()
+
 WHILE:
 	select {
-	case <-timeout:
+	case <-timeout.C:
 		isTimeout = true
-	case <-time.After(util.If(retry == 0, time.Duration(0), this.options(topic).checkInterval).(time.Duration)):
+	case <-ticker.C:
 		// 当前topic的offset 晚于 前置topic的offset + 需延迟的offset量时，继续等待
 		if offset > this.GetFrontTopicOffset(topic)+this.options(topic).delayOffset {
 			retry++
