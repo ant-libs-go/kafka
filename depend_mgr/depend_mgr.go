@@ -177,8 +177,6 @@ func (this *DependMgr) MarkTopicOffsetForAllPartition(topic string, offset int64
 
 // unsafe
 func (this *DependMgr) getTopicOffset(topic string) (r int64) {
-	r = time.Now().UnixNano() // TODO ?
-
 	if _, ok := this.m[topic]; !ok {
 		return
 	}
