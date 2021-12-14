@@ -214,19 +214,20 @@ func (this *DependMgr) Wait(topic string, offset int64) (isTimeout bool) {
 	timeout := time.NewTimer(util.If(this.options(topic).timeout > 0, this.options(topic).timeout, time.Hour*24*30).(time.Duration))
 	defer timeout.Stop()
 
-	retry := 0
+	timer := time.NewTimer(0)
+	defer timer.Stop()
 
-	ticker := time.NewTicker(this.options(topic).checkInterval)
-	defer ticker.Stop()
+	retry := 0
 
 WHILE:
 	select {
 	case <-timeout.C:
 		isTimeout = true
-	case <-ticker.C:
+	case <-timer.C:
 		// 当前topic的offset 晚于 前置topic的offset + 需延迟的offset量时，继续等待
 		if offset > this.GetFrontTopicOffset(topic)+this.options(topic).delayOffset {
 			retry++
+			timer.Reset(this.options(topic).checkInterval)
 			seelog.Infof("[DEPEND_MGR] %s(%d) it has depend %s(%d) unable to start, wait %s, try %d times",
 				topic, offset, this.options(topic).frontTopic, this.GetFrontTopicOffset(topic), this.options(topic).checkInterval, retry)
 			goto WHILE
