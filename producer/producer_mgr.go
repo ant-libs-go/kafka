@@ -97,33 +97,29 @@ func CloseProducer(name string) (err error) {
 }
 
 func getProducer(name string) (r *KafkaProducer, err error) {
-	lock.RLock()
-	r = producers[name]
-	lock.RUnlock()
-	if r == nil {
-		r, err = addProducer(name)
-	}
-	return
-}
-
-func addProducer(name string) (r *KafkaProducer, err error) {
 	var cfg *Cfg
-	if cfg, err = loadCfg(name); err != nil {
-		return
-	}
-	if r, err = NewKafkaProducer(cfg); err != nil {
+	if cfg, err = LoadCfg(name); err != nil {
 		return
 	}
 
 	lock.Lock()
-	producers[name] = r
-	lock.Unlock()
+	defer lock.Unlock()
+
+	if _, ok := producers[name]; !ok {
+		var producer *KafkaProducer
+		if producer, err = NewKafkaProducer(cfg); err != nil {
+			return
+		}
+		producers[name] = producer
+	}
+
+	r = producers[name]
 	return
 }
 
-func loadCfg(name string) (r *Cfg, err error) {
+func LoadCfg(name string) (r *Cfg, err error) {
 	var cfgs map[string]*Cfg
-	if cfgs, err = loadCfgs(); err != nil {
+	if cfgs, err = LoadCfgs(); err != nil {
 		return
 	}
 	if r = cfgs[name]; r == nil {
@@ -133,7 +129,7 @@ func loadCfg(name string) (r *Cfg, err error) {
 	return
 }
 
-func loadCfgs() (r map[string]*Cfg, err error) {
+func LoadCfgs() (r map[string]*Cfg, err error) {
 	r = map[string]*Cfg{}
 
 	once.Do(func() {
