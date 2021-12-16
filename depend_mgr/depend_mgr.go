@@ -182,6 +182,10 @@ func (this *DependMgr) getTopicOffset(topic string) (r int64) {
 	}
 
 	for _, v := range this.m[topic] {
+		if r == 0 {
+			r = v
+			continue
+		}
 		r = util.MinInt64(r, v)
 	}
 	return
